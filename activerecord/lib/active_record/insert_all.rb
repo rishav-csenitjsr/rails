@@ -130,11 +130,11 @@ module ActiveRecord
 
         def values_list
           types = extract_types_from_columns_on(model.table_name, keys: keys)
-
+          puts "types is : #{types}"
           values_list = insert_all.map_key_with_value do |key, value|
             connection.with_yaml_fallback(types[key].serialize(value))
           end
-
+          puts "values_list is: #{values_list}"
           Arel::InsertManager.new.create_values_list(values_list).to_sql
         end
 
@@ -177,11 +177,25 @@ module ActiveRecord
 
           def extract_types_from_columns_on(table_name, keys:)
             columns = connection.schema_cache.columns_hash(table_name)
-
             unknown_column = (keys - columns.keys).first
             raise UnknownAttributeError.new(model.new, unknown_column) if unknown_column
 
-            keys.index_with { |key| connection.lookup_cast_type_from_column(columns[key]) }
+            keys.index_with do |key|
+              # connection.lookup_cast_type_from_column(columns[key])
+              type_for_attribute_for_attr_name(columns[key], table_name)
+            end
+          end
+
+          def type_for_attribute_for_attr_name(attr_name, table_name)
+            schema_cache = connection.schema_cache
+
+            if schema_cache.data_source_exists?(table_name)
+              column = schema_cache.columns_hash(table_name)[attr_name.to_s]
+              type = connection.lookup_cast_type_from_column(column) if column
+            end
+            # puts "type is #{type}"
+            type || Type.default_value
+            # puts "Modified type is #{type || Type.default_value}"
           end
 
           def format_columns(columns)
